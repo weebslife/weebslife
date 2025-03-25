@@ -16,13 +16,14 @@ jobs:
       - name: Modify LAST_UPDATED file
         run: |
           d=`date '+%Y-%m-%dT%H:%M:%SZ'`
-          echo $d > LAST_UPDATED
+          r=`shuf -i 1-5 -n 1`
+          echo "$d | $r" > LAST_UPDATED
       - name: Commit changes
         run: |
           git config --local user.email "shobirinadin@gmail.com"
           git config --local user.name "weebslife"
           git add -A
-          git commit -m "Penghijauan Kebun" || echo "No changes to commit"
+          git commit -m "Penghijauan Kebun [$r malas terdeteksi]" || echo "No changes to commit"
       - name: Push Back
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
