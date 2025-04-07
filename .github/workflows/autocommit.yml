@@ -1,30 +1,63 @@
 name: Auto commit
+
 on:
   push:
     branches:
       - main
   schedule:
-    - cron: '0 7,8,9,10,11 * * *'
+    - cron: '0 7,8,9,10,11 * * *'  # jalan 5x per hari, jam 7-11 UTC
+
 jobs:
   auto_commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
-          persist-credentials: true 
+          persist-credentials: true
           fetch-depth: 0
-      - name: Modify LAST_UPDATED file
+
+      - name: Set up commit plan & update LAST_UPDATED
         run: |
-          d=`date '+%Y-%m-%dT%H:%M:%SZ'`
-          r=`shuf -i 1-5 -n 1`
-          echo "$d | $r" > LAST_UPDATED
+          today=$(date '+%Y-%m-%d')
+
+          # jika belum ada file plan
+          if [ ! -f .commit_plan ]; then
+            target=$(shuf -i 1-5 -n 1)
+            echo "$today | $target | 0" > .commit_plan
+          fi
+
+          # baca isi file plan
+          read plan_date target done < <(awk -F '|' '{print $1, $2, $3}' .commit_plan | tr -d ' ')
+
+          # reset plan jika hari berganti
+          if [ "$plan_date" != "$today" ]; then
+            target=$(shuf -i 1-5 -n 1)
+            echo "$today | $target | 0" > .commit_plan
+            done=0
+          fi
+
+          # jika commit sudah cukup → exit
+          if [ "$done" -ge "$target" ]; then
+            echo "Target commit harian sudah tercapai ($done/$target). Skip commit."
+            exit 0
+          fi
+
+          # update file LAST_UPDATED dan counter
+          timestamp=$(date '+%Y-%m-%dT%H:%M:%SZ')
+          echo "$timestamp | commit ke-$((done + 1)) dari $target" > LAST_UPDATED
+
+          # update counter done
+          new_done=$((done + 1))
+          echo "$today | $target | $new_done" > .commit_plan
+
       - name: Commit changes
         run: |
           git config --local user.email "shobirinadin@gmail.com"
           git config --local user.name "weebslife"
           git add -A
-          git commit -m "Penghijauan Kebun [$r malas terdeteksi]" || echo "No changes to commit"
-      - name: Push Back
+          git commit -m "Auto commit ke-$new_done hari ini 🚜" || echo "No changes to commit"
+
+      - name: Push changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
