@@ -22,9 +22,9 @@ jobs:
           set -euo pipefail
 
           today=$(date '+%Y-%m-%d')
-
+          
           if [ ! -f .commit_plan ]; then
-            target=$(shuf -i 1-5 -n 1)
+            target=$(shuf -i 1-10 -n 1)
             echo "$today | $target | 0" > .commit_plan
           fi
 
@@ -33,8 +33,9 @@ jobs:
           target=$(echo "$target" | xargs)
           done=$(echo "$done" | xargs)
 
+          
           if [ "$plan_date" != "$today" ]; then
-            target=$(shuf -i 1-5 -n 1)
+            target=$(shuf -i 1-10 -n 1)
             echo "$today | $target | 0" > .commit_plan
             done=0
           fi
@@ -44,14 +45,15 @@ jobs:
             echo "skipped=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-
+          
           timestamp=$(date --utc '+%Y-%m-%dT%H:%M:%SZ')
           echo "$timestamp | commit ke-$((done + 1)) dari $target" > LAST_UPDATED
 
           new_done=$((done + 1))
           echo "$today | $target | $new_done" > .commit_plan
-
+          
           echo "new_done=$new_done" >> $GITHUB_OUTPUT
+          echo "target=$target" >> $GITHUB_OUTPUT
           echo "skipped=false" >> $GITHUB_OUTPUT
 
       - name: Commit changes
