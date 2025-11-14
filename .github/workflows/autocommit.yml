@@ -5,7 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 7,8,9,10,11 * * *'  # jalan 5x per hari, jam 7-11 UTC
+    - cron: '0 7,8,9,10,11 * * *'
 
 jobs:
   auto_commit:
@@ -16,48 +16,58 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Set up commit plan & update LAST_UPDATED
+      - id: prepare
+        name: Set up commit plan & update LAST_UPDATED
         run: |
+          set -euo pipefail
+
           today=$(date '+%Y-%m-%d')
 
-          # jika belum ada file plan
           if [ ! -f .commit_plan ]; then
             target=$(shuf -i 1-5 -n 1)
             echo "$today | $target | 0" > .commit_plan
           fi
 
-          # baca isi file plan
-          read plan_date target done < <(awk -F '|' '{print $1, $2, $3}' .commit_plan | tr -d ' ')
+          IFS='|' read -r plan_date target done < .commit_plan
+          plan_date=$(echo "$plan_date" | xargs)
+          target=$(echo "$target" | xargs)
+          done=$(echo "$done" | xargs)
 
-          # reset plan jika hari berganti
           if [ "$plan_date" != "$today" ]; then
             target=$(shuf -i 1-5 -n 1)
             echo "$today | $target | 0" > .commit_plan
             done=0
           fi
 
-          # jika commit sudah cukup → exit
           if [ "$done" -ge "$target" ]; then
             echo "Target commit harian sudah tercapai ($done/$target). Skip commit."
+            echo "skipped=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # update file LAST_UPDATED dan counter
-          timestamp=$(date '+%Y-%m-%dT%H:%M:%SZ')
+          timestamp=$(date --utc '+%Y-%m-%dT%H:%M:%SZ')
           echo "$timestamp | commit ke-$((done + 1)) dari $target" > LAST_UPDATED
 
-          # update counter done
           new_done=$((done + 1))
           echo "$today | $target | $new_done" > .commit_plan
 
+          echo "new_done=$new_done" >> $GITHUB_OUTPUT
+          echo "skipped=false" >> $GITHUB_OUTPUT
+
       - name: Commit changes
+        if: steps.prepare.outputs.skipped != 'true'
+        env:
+          GITHUB_EMAIL: "shobirinadin@gmail.com"
+          GITHUB_NAME: "weebslife"
         run: |
-          git config --local user.email "shobirinadin@gmail.com"
-          git config --local user.name "weebslife"
+          git config --local user.email "$GITHUB_EMAIL"
+          git config --local user.name "$GITHUB_NAME"
           git add -A
-          git commit -m "Auto commit ke-$new_done hari ini 🚜" || echo "No changes to commit"
+          new_done="${{ steps.prepare.outputs.new_done }}"
+          git commit -m "Auto commit ke-$new_done hari ini" || echo "No changes to commit"
 
       - name: Push changes
+        if: steps.prepare.outputs.skipped != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
